@@ -53,7 +53,7 @@ def jsl_spider(id_card):
 
 
 
-def threeTypeCB(opener):
+def fourTypeCB(opener):
     #global str, df, ndarray, list, each, dict, dict2, i, newDf
     global newDf
     # TODO：可转债筛选
@@ -77,8 +77,8 @@ def threeTypeCB(opener):
                     list[i]['price_tips']]
     # 再将dict放入dataframe
     newDf = pd.DataFrame.from_dict(dict2, orient='index',
-                                   columns=['bond_id', 'bond_nm', 'price', 'premium_rt', 'rating_cd', 'convert_cd',
-                                            'year_left', 'ytm_rt_tax', 'price_tips'])
+                                   columns=['代码', '转债名称', '现价', '溢价率', '评级', '是否转股期',
+                                            '剩余年限', '到期税后收益', '是否上市'])
     i = 0
     for each in newDf.values:
         if (each[1].__contains__('EB') or each[8] == '待上市' or (
@@ -92,38 +92,38 @@ def threeTypeCB(opener):
 
     print(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
     # 数据类型转换
-    newDf['ytm_rt_tax'] = newDf['ytm_rt_tax'].map(lambda x: float(x[0:-1]) / 100)
-    newDf['premium_rt'] = newDf['premium_rt'].map(lambda x: float(x[0:-1]) / 100)
-    newDf['price'] = newDf['price'].map(lambda x: float(x))
+    newDf['到期税后收益'] = newDf['到期税后收益'].map(lambda x: float(x[0:-1]) / 100)
+    newDf['溢价率'] = newDf['溢价率'].map(lambda x: float(x[0:-1]) / 100)
+    newDf['现价'] = newDf['现价'].map(lambda x: float(x))
     # 防御型
-    defence = newDf.sort_values(by='ytm_rt_tax', axis=0, ascending=False).head(3)
+    defence = newDf.sort_values(by='到期税后收益', axis=0, ascending=False).head(3)
     print('防御型:')
-    print(defence[['bond_id', 'bond_nm', 'price', 'premium_rt', 'rating_cd', 'year_left', 'ytm_rt_tax']])
+    print(defence[['代码', '转债名称', '现价', '溢价率', '评级', '剩余年限', '到期税后收益']])
     # 平衡型
-    balance = newDf[newDf['ytm_rt_tax'] > 0]
-    balance = balance[balance['ytm_rt_tax'] < 0.03]
-    balance = balance[balance['premium_rt'] < 0.05].head(5)
+    balance = newDf[newDf['到期税后收益'] > 0]
+    balance = balance[balance['到期税后收益'] < 0.03]
+    balance = balance[balance['溢价率'] < 0.05].head(5)
     print('平衡型:')
-    print(balance[['bond_id', 'bond_nm', 'price', 'premium_rt', 'rating_cd', 'year_left', 'ytm_rt_tax']])
+    print(balance[['代码', '转债名称', '现价', '溢价率', '评级', '剩余年限', '到期税后收益']])
     # 进攻型
-    indexs = newDf.loc[(newDf['convert_cd'] == '未到转股期')].index  # 过滤未到转股期
+    indexs = newDf.loc[(newDf['是否转股期'] == '未到转股期')].index  # 过滤未到转股期
     attack = newDf.drop(indexs)
-    attack = attack[attack['premium_rt'] < 0.02].sort_values(by='premium_rt', axis=0, ascending=True).head(2)
+    attack = attack[attack['溢价率'] < 0.02].sort_values(by='溢价率', axis=0, ascending=True).head(2)
     print('进攻型:')
-    print(attack[['bond_id', 'bond_nm', 'price', 'premium_rt', 'rating_cd', 'year_left', 'ytm_rt_tax']])
+    print(attack[['代码', '转债名称', '现价', '溢价率', '评级', '剩余年限', '到期税后收益']])
 
-    # TODO:四要素类型   AA级以上的    溢价率＜10%     到期收益率＞0     价格110以下
-    fourElement = newDf[newDf['ytm_rt_tax'] > 0]    #到期收益率＞0
-    fourElement = fourElement[fourElement['premium_rt'] < 0.1]  #溢价率＜10%
-    fourElement = fourElement[fourElement['price'] < 110]
+    # TODO:四要素类型   AA级以上的    溢价率＜10%     到期收益率＞0     价格110以下    再加一个是否转股期自行选择
+    fourElement = newDf[newDf['到期税后收益'] > 0]    #到期收益率＞0
+    fourElement = fourElement[fourElement['溢价率'] < 0.1]  #溢价率＜10%
+    fourElement = fourElement[fourElement['现价'] < 110]
     print('四要素类型：')
-    print(fourElement[['bond_id', 'bond_nm', 'price', 'premium_rt', 'rating_cd', 'year_left', 'ytm_rt_tax']])
+    print(fourElement[['代码', '转债名称', '现价', '溢价率', '评级', '剩余年限', '到期税后收益','是否转股期']])
 
 
 
 def readyToPutCB(opener):
     #global str, df, ndarray, list, each, dict, dict2, i
-    # TODO: 筛选即将触发回售： 正股价持续一个月低于转股价的70%  正股价sprice<回售触发价put_convert_price & 今天>回售起始日
+    # TODO: 筛选即将触发回售： 直接判断time字段回售触及天数就行
     response2 = opener.open(
         'https://www.jisilu.cn/data/cbnew/huishou_list/?___jsl=LST___t=1567500724887')  # 此处的open方法同urllib的urlopen方法
     str = response2.read().decode('utf-8')
@@ -139,29 +139,29 @@ def readyToPutCB(opener):
     dict2 = {}
     for i in range(len(list)):
         dict2[i] = [list[i]['bond_id'], list[i]['bond_nm'], list[i]['next_put_dt'], list[i]['sprice'],
-                    list[i]['put_convert_price']]
+                    list[i]['put_convert_price'],list[i]['time']]
     # 再将dict放入dataframe
     newDf2 = pd.DataFrame.from_dict(dict2, orient='index',
-                                    columns=['bond_id', 'bond_nm', 'next_put_dt', 'sprice', 'put_convert_price'])
+                                    columns=['代码', '转债名称', '回售起始日', '正股价', '回售触发价','回售触及天数'])
     nowTime_str = datetime.datetime.now().strftime('%Y-%m-%d')
     print('即将触发回售：')
+
+    i = 0
     for each in newDf2.values:
-        if (each[3].__contains__('-') or each[4].__contains__('-') or each[1].__contains__('EB') or each[
-            2] > nowTime_str):
-            continue
-        if (float(each[3]) < float(each[4])):
-            print(each)
-            for each2 in newDf.values:
-                if (each[0] == each2[0]):
-                    print(each2)
+        if (each[5] == '-' or each[1].__contains__('EB') or each[2] > nowTime_str):  # 去掉可交换债
+            newDf2 = newDf2.drop([i])
+        i = i + 1
+    print(newDf2)
+    # for each in newDf2.values:
+    #     if (each[5].__contains__('-') or each[1].__contains__('EB') or each[2] > nowTime_str):  #过了回售起始日
+    #         continue
+    #     # if (float(each[3]) < float(each[4])):  #旧的判断方法  正股价sprice<回售触发价put_convert_price & 今天>回售起始日
 
+    # for each in newDf2.values:  #在newDf取出更多信息
+    #     for each2 in newDf.values:
+    #         if (each[0] == each2[0]):
+    #             print(each2)
 
-
-
-
-
-
- # TODO: 筛选即将触发回售： 正股价持续一个月低于转股价的70%  正股价sprice<回售触发价put_convert_price & 今天>回售起始日
 
 
 
@@ -172,9 +172,15 @@ try:
     opener = build_opener(proxy_handler)  # 通过proxy_handler来构建opener
 
 
-    threeTypeCB(opener)
+    fourTypeCB(opener)
 
     readyToPutCB(opener)
+
+    response = opener.open(
+        'https://www.lixinger.com/api/analyt/stock-collection/price-metrics/indices/latest')  # 此处的open方法同urllib的urlopen方法
+    str = response.read().decode('utf-8')
+    json1 = json.loads(str)
+    df = pd.DataFrame(json1)
 
     #TODO:各宽基指数长投温度
 
